@@ -1,0 +1,173 @@
+<html>
+<head>
+    <title>Vehicle Movement</title>
+    <link href="webjars/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.6.3/css/bootstrap-select.min.css"/>
+    <style type="text/css">
+        .mybox {
+            background-color: lightgray;
+            height: 80%;
+            width: 100%;
+        }
+
+        .labelCar {
+            position: absolute;
+            left: 130px;
+            top: 280px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <br/>
+    <div>
+        <a class="btn btn-primary" onclick="addVehicle()">Add a Vehicle</a>
+    </div>
+    <br/>
+    <table class="table table-striped">
+        <caption>Modify your vehicles here</caption>
+        <thead>
+        <tr>
+            <th style="width:10%">Vehicle No</th>
+            <th style="width:10%">Direction</th>
+            <th style="width:10%">Modify Direction</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td><input type="text" class="form-control input-sm" id="vehicleNo" required></td>
+            <td>
+                <div class="row-fluid">
+                    <select class="selectpicker" data-show-subtext="true" data-live-search="true">
+                        <option value="north">North</option>
+                        <option value="south">South</option>
+                        <option value="east">East</option>
+                        <option value="west">West</option>
+                    </select>
+                </div>
+            </td>
+            <td><a class="btn btn-warning" onclick="modifyDirection()">Modify</a></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="container">
+    <div class="panel-group">
+        <div class="panel panel-default">
+            <div class="panel-heading">Active Vehicles</div>
+            <div class="panel-body">
+                <div class="mybox">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" role="dialog">
+    <div class="modal-dialog">
+
+        <!-- Modal content-->
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title">Warning</h4>
+            </div>
+            <div class="modal-body">
+                <p>Please enter Car number.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+<div>
+</div>
+
+<div>
+    <script src="webjars/jquery/1.9.1/jquery.min.js"></script>
+    <script src="webjars/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.inputmask/3.1.60/inputmask/jquery.inputmask.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.6.3/js/bootstrap-select.min.js"></script>
+    <script src="/webjars/sockjs-client/1.0.2/sockjs.min.js"></script>
+    <script src="/webjars/stomp-websocket/2.3.3/stomp.min.js"></script>
+
+    <script type="text/javascript">
+
+        var option = '';
+        $(document).ready(function () {
+            $('#myModal').modal('hide');
+            $("#vehicleNo").inputmask('C\\ar #(999)');
+            $('select').selectpicker();
+            $('.selectpicker').selectpicker();
+            OpenSocket();
+        });
+
+        function OpenSocket() {
+            var socket = new SockJS('/vehicle-websocket-endpoint');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function (frame) {
+                console.log('Connected: ' + frame);
+                stompClient.subscribe('/topic/vehicle', function (vehicle) {
+                    var vehicleObj = JSON.parse(vehicle.body);
+                    var ID = vehicleObj.name.replace(/^\D+/g, '');
+                    var myEle = document.getElementById(ID);
+                    console.log(myEle);
+                    if (!myEle) {
+                        console.log("My element is null - create label")
+                        createLabel(ID);
+                    }
+                    $('#' + ID).css({top: vehicleObj.y, left: vehicleObj.x});
+                });
+            });
+        }
+
+        function createLabel(ID) {
+            var label = document.createElement('label');  //Create Label for email field
+            label.innerHTML = "Car - No" + ID;
+            label.setAttribute("id", ID)
+            label.setAttribute("class", "labelCar")
+            $(".mybox").append(label);
+            return label;
+        }
+
+        window.onbeforeunload = closeSocket;
+
+        function closeSocket() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            setConnected(false);
+            console.log("Disconnected");
+        }
+
+        function addVehicle() {
+            stompClient.send("/app/createVehicle", {}, JSON.stringify({'x': 130, 'y': 300, 'direction': 'east'}));
+            //$("#vehicleNo").val()
+        }
+
+        function modifyDirection() {
+            if ($("#vehicleNo").val().replace(/[^0-9]/gi, '').length > 0) {
+                stompClient.send("/app/modifyVehicleDirection", {}, JSON.stringify({
+                    'name': $("#vehicleNo").val().replace(/[^0-9]/gi, ''),
+                    'direction': $('.selectpicker').val()
+                }));
+            } else {
+                $('#myModal').modal('show');
+            }
+        }
+
+        $('.selectpicker').on('change', function () {
+            option = $(this).find('option:selected');
+            if (option.length) {
+                console.log('combobox value is ' + option.val());
+            }
+        });
+
+    </script>
+</div>
+</body>
+</html>
